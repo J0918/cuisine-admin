@@ -9,8 +9,10 @@ export default defineConfig({
       "/api": {
         target: "https://localhost:7216", // 后端接口地址
         changeOrigin: true,
-        secure: false
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, "/api")
       }
     }
-  }
+  },
+  base: "./"
 });
