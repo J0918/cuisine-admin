@@ -26,3 +26,21 @@ export function getRandomCuisine(params) {
     params
   });
 }
+
+// 修改菜品信息
+export function updateCuisine(params) {
+  return request({
+    url: "/Cuisine/UpdateCuisine",
+    method: "get",
+    params
+  });
+}
+
+// 删除菜品
+export function deleteCuisine(params) {
+  return request({
+    url: "/Cuisine/DeleteCuisine",
+    method: "get",
+    params
+  });
+}

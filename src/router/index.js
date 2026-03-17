@@ -18,13 +18,19 @@ const routes = [
     path: "/user",
     name: "User",
     component: User,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "用户管理"
+    }
   },
   {
     path: "/dish",
     name: "Dish",
     component: Dish,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "菜品管理"
+    }
   }
 ];
 
@@ -33,7 +39,7 @@ const router = createRouter({
   routes
 });
 
-// 路由守卫：检查是否已登录
+// 路由守卫（保持不变）
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem("token");
   if (to.meta.requiresAuth && !token) {

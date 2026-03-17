@@ -40,6 +40,7 @@
       </el-table-column>
     </el-table>
 
+    <!-- 随机菜单弹窗 -->
     <el-dialog v-model="randomDialogVisible" title="今天吃什么" width="600px" @close="randomDialogVisible = false">
       <div style="margin-bottom: 20px">
         <el-form :inline="true" :model="randomParams" label-width="80px">
@@ -109,17 +110,29 @@
       @current-change="handleCurrentChange"
       style="margin-top: 20px; justify-content: flex-end" />
 
-    <!-- 新增菜品弹窗（只保留菜品名称输入） -->
+    <!-- 新增菜品弹窗 -->
     <el-dialog v-model="addDialogVisible" title="新增菜品" width="500px" @close="resetAddForm">
       <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="80px" label-position="right">
         <el-form-item label="菜品名称" prop="cuisineName">
           <el-input v-model="addForm.cuisineName" placeholder="请输入菜品名称" />
         </el-form-item>
-        <!-- 分类已根据当前标签页自动填充，无需显示 -->
       </el-form>
       <template #footer>
         <el-button @click="addDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitAdd" :loading="addLoading">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑菜品弹窗 -->
+    <el-dialog v-model="editDialogVisible" title="编辑菜品" width="500px" @close="resetEditForm">
+      <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="80px" label-position="right">
+        <el-form-item label="菜品名称" prop="cuisineName">
+          <el-input v-model="editForm.cuisineName" placeholder="请输入菜品名称" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitEdit" :loading="editLoading">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -127,8 +140,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
-import { ElMessage } from "element-plus";
-import { getCuisineList, addCuisine, getRandomCuisine } from "../api/dish";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { getCuisineList, addCuisine, updateCuisine, deleteCuisine, getRandomCuisine } from "../api/dish";
 
 // 当前激活的 tab（对应 cuisineType）
 const activeTab = ref("0");
@@ -145,47 +158,7 @@ const dishList = ref([]);
 const total = ref(0);
 const loading = ref(false);
 
-// 新增弹窗
-const addDialogVisible = ref(false);
-const addLoading = ref(false);
-const addFormRef = ref(null);
-const addForm = reactive({
-  cuisineName: "",
-  cuisineType: 0
-});
-const addFormRules = {
-  cuisineName: [
-    { required: true, message: "请输入菜品名称", trigger: "blur" },
-    { min: 2, max: 20, message: "长度在 2 到 20 个字符", trigger: "blur" }
-  ]
-};
-
-// 随机菜单弹窗
-const randomDialogVisible = ref(false);
-const randomLoading = ref(false);
-const randomParams = reactive({
-  meatCount: 0,
-  vegetableCount: 0,
-  soupCount: 0
-});
-const randomResult = ref([]); // 存储返回的菜品列表
-
-const openRandomDialog = () => {
-  // 重置数量和结果
-  randomParams.meatCount = 0;
-  randomParams.vegetableCount = 0;
-  randomParams.soupCount = 0;
-  randomResult.value = [];
-  randomDialogVisible.value = true;
-};
-
-// 根据当前 tab 获取分类名称（用于按钮文字）
-const currentTabName = computed(() => {
-  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
-  return map[activeTab.value] || "菜品";
-});
-
-// 获取菜品列表
+// ---------- 列表相关方法 ----------
 const fetchDishList = async () => {
   loading.value = true;
   try {
@@ -204,104 +177,66 @@ const fetchDishList = async () => {
   }
 };
 
-const generateRandomMenu = async () => {
-  // 数据验证
-  if (randomParams.meatCount < 0 || randomParams.vegetableCount < 0 || randomParams.soupCount < 0) {
-    ElMessage.warning("数量不能为负数");
-    return;
-  }
-  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount === 0) {
-    ElMessage.warning("请至少选择一道菜");
-    return;
-  }
-
-  if (randomParams.meatCount > 5 || randomParams.vegetableCount > 5 || randomParams.soupCount > 5) {
-    ElMessage.warning("每类菜品最多选择5个");
-    return;
-  }
-
-  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount > 10) {
-    ElMessage.warning("菜品总数不能超过10");
-    return;
-  }
-
-  randomLoading.value = true;
-  try {
-    const res = await getRandomCuisine({
-      meatCount: randomParams.meatCount,
-      vegetableCount: randomParams.vegetableCount,
-      soupCount: randomParams.soupCount
-    });
-    if (res.code === 200) {
-      randomResult.value = res.data || [];
-      if (randomResult.value.length === 0) {
-        ElMessage.info("暂无符合条件的菜品");
-      } else {
-        // 可选：提示实际返回的数量（如果少于请求数量）
-        const meatActual = randomResult.value.filter((item) => item.cuisineType === 0).length;
-        const vegActual = randomResult.value.filter((item) => item.cuisineType === 1).length;
-        const soupActual = randomResult.value.filter((item) => item.cuisineType === 2).length;
-        if (meatActual < randomParams.meatCount || vegActual < randomParams.vegetableCount || soupActual < randomParams.soupCount) {
-          ElMessage.warning("部分菜品数量不足，已返回全部可用菜品");
-        }
-      }
-    } else {
-      ElMessage.error(res.message || "获取失败");
-    }
-  } catch (error) {
-    console.error(error);
-    ElMessage.error("随机菜单生成失败");
-  } finally {
-    randomLoading.value = false;
-  }
-};
-
-// Tab 点击事件
 const handleTabClick = (tab) => {
   queryParams.cuisineType = parseInt(tab.paneName);
   queryParams.pageIndex = 1;
   fetchDishList();
 };
 
-// 查询按钮
 const handleSearch = () => {
   queryParams.pageIndex = 1;
   fetchDishList();
 };
 
-// 重置筛选条件
 const resetSearch = () => {
   queryParams.cuisineName = "";
   queryParams.pageIndex = 1;
   fetchDishList();
 };
 
-// 每页条数变化
 const handleSizeChange = (size) => {
   queryParams.pageSize = size;
   queryParams.pageIndex = 1;
   fetchDishList();
 };
 
-// 当前页变化
 const handleCurrentChange = (page) => {
   queryParams.pageIndex = page;
   fetchDishList();
 };
 
-// 分类数字转中文显示
 const getCuisineTypeText = (type) => {
   const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
   return map[type] || "未知";
 };
 
-// 新增菜品：根据当前 tab 设置分类并打开弹窗
+// ---------- 新增菜品 ----------
+const addDialogVisible = ref(false);
+const addLoading = ref(false);
+const addFormRef = ref(null);
+const addForm = reactive({
+  cuisineName: "",
+  cuisineType: 0
+});
+
+const addFormRules = {
+  cuisineName: [
+    { required: true, message: "请输入菜品名称", trigger: "blur" },
+    { min: 2, max: 20, message: "长度在 2 到 20 个字符", trigger: "blur" }
+  ]
+};
+
+// 根据当前 tab 获取分类名称（用于按钮文字）
+const currentTabName = computed(() => {
+  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
+  return map[activeTab.value] || "菜品";
+});
+
 const handleAdd = () => {
   addForm.cuisineType = parseInt(activeTab.value);
   addDialogVisible.value = true;
 };
 
-// 重置新增表单
 const resetAddForm = () => {
   if (addFormRef.value) {
     addFormRef.value.resetFields();
@@ -309,7 +244,6 @@ const resetAddForm = () => {
   addForm.cuisineName = "";
 };
 
-// 提交新增
 const submitAdd = async () => {
   if (!addFormRef.value) return;
   await addFormRef.value.validate(async (valid) => {
@@ -333,19 +267,152 @@ const submitAdd = async () => {
   });
 };
 
+// ---------- 编辑菜品 ----------
+const editDialogVisible = ref(false);
+const editLoading = ref(false);
+const editFormRef = ref(null);
+const editForm = reactive({
+  id: null,
+  cuisineName: ""
+});
+
+const editFormRules = {
+  cuisineName: [
+    { required: true, message: "请输入菜品名称", trigger: "blur" },
+    { min: 2, max: 20, message: "长度在 2 到 20 个字符", trigger: "blur" }
+  ]
+};
+
+const handleEdit = (row) => {
+  editForm.id = row.id;
+  editForm.cuisineName = row.cuisineName;
+  editDialogVisible.value = true;
+};
+
+const resetEditForm = () => {
+  if (editFormRef.value) {
+    editFormRef.value.resetFields();
+  }
+  editForm.id = null;
+  editForm.cuisineName = "";
+};
+
+const submitEdit = async () => {
+  if (!editFormRef.value) return;
+  await editFormRef.value.validate(async (valid) => {
+    if (valid) {
+      editLoading.value = true;
+      try {
+        // 调用修改接口（GET 方式，传入 id 和 cuisineName）
+        await updateCuisine({
+          id: editForm.id,
+          cuisineName: editForm.cuisineName
+        });
+        ElMessage.success("修改成功");
+        editDialogVisible.value = false;
+        fetchDishList();
+      } catch (error) {
+        console.error(error);
+        ElMessage.error("修改失败");
+      } finally {
+        editLoading.value = false;
+      }
+    }
+  });
+};
+
+// ---------- 删除菜品 ----------
+const handleDelete = (row) => {
+  ElMessageBox.confirm(`确认删除菜品“${row.cuisineName}”吗？`, "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning"
+  })
+    .then(async () => {
+      try {
+        await deleteCuisine({ id: row.id });
+        ElMessage.success("删除成功");
+        fetchDishList();
+      } catch (error) {
+        console.error(error);
+        ElMessage.error("删除失败");
+      }
+    })
+    .catch(() => {});
+};
+
+// ---------- 随机菜单 ----------
+const randomDialogVisible = ref(false);
+const randomLoading = ref(false);
+const randomParams = reactive({
+  meatCount: 0,
+  vegetableCount: 0,
+  soupCount: 0
+});
+const randomResult = ref([]);
+
+const openRandomDialog = () => {
+  randomParams.meatCount = 0;
+  randomParams.vegetableCount = 0;
+  randomParams.soupCount = 0;
+  randomResult.value = [];
+  randomDialogVisible.value = true;
+};
+
+const generateRandomMenu = async () => {
+  // 数据验证
+  if (randomParams.meatCount < 0 || randomParams.vegetableCount < 0 || randomParams.soupCount < 0) {
+    ElMessage.warning("数量不能为负数");
+    return;
+  }
+  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount === 0) {
+    ElMessage.warning("请至少选择一道菜");
+    return;
+  }
+  if (randomParams.meatCount > 5 || randomParams.vegetableCount > 5 || randomParams.soupCount > 5) {
+    ElMessage.warning("每类菜品最多选择5个");
+    return;
+  }
+  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount > 10) {
+    ElMessage.warning("菜品总数不能超过10");
+    return;
+  }
+
+  randomLoading.value = true;
+  try {
+    const res = await getRandomCuisine({
+      meatCount: randomParams.meatCount,
+      vegetableCount: randomParams.vegetableCount,
+      soupCount: randomParams.soupCount
+    });
+    if (res.code === 200) {
+      randomResult.value = res.data || [];
+      if (randomResult.value.length === 0) {
+        ElMessage.info("暂无符合条件的菜品");
+      } else {
+        // 提示实际返回的数量（如果少于请求数量）
+        const meatActual = randomResult.value.filter((item) => item.cuisineType === 0).length;
+        const vegActual = randomResult.value.filter((item) => item.cuisineType === 1).length;
+        const soupActual = randomResult.value.filter((item) => item.cuisineType === 2).length;
+        if (meatActual < randomParams.meatCount || vegActual < randomParams.vegetableCount || soupActual < randomParams.soupCount) {
+          ElMessage.warning("部分菜品数量不足，已返回全部可用菜品");
+        }
+      }
+    } else {
+      ElMessage.error(res.message || "获取失败");
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("随机菜单生成失败");
+  } finally {
+    randomLoading.value = false;
+  }
+};
+
 // 初始化加载
 onMounted(() => {
   fetchDishList();
 });
-
-// 操作函数（待实现）
-const handleEdit = (row) => {
-  ElMessage.info("编辑功能待实现");
-};
-
-const handleDelete = (row) => {
-  ElMessage.info("删除功能待实现");
-};
 </script>
 
 <style scoped>
@@ -355,9 +422,5 @@ const handleDelete = (row) => {
 .el-pagination {
   margin-top: 20px;
   justify-content: flex-end;
-}
-xz .el-dialog__body {
-  max-height: 400px;
-  overflow-y: auto;
 }
 </style>
