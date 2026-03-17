@@ -19,6 +19,7 @@
         <el-button @click="resetSearch">重置</el-button>
         <!-- 新增按钮，根据当前 tab 显示对应分类名称 -->
         <el-button type="success" @click="handleAdd" style="margin-left: 12px"> 新增{{ currentTabName }} </el-button>
+        <el-button type="warning" @click="openRandomDialog" style="margin-left: 12px"> 今天吃什么 </el-button>
       </el-form-item>
     </el-form>
 
@@ -38,6 +39,64 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="randomDialogVisible" title="今天吃什么" width="600px" @close="randomDialogVisible = false">
+      <div style="margin-bottom: 20px">
+        <el-form :inline="true" :model="randomParams" label-width="80px">
+          <el-form-item label="荤菜数量">
+            <el-input-number v-model="randomParams.meatCount" :min="0" :max="99" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="素菜数量">
+            <el-input-number v-model="randomParams.vegetableCount" :min="0" :max="99" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="汤粥数量">
+            <el-input-number v-model="randomParams.soupCount" :min="0" :max="99" controls-position="right" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="generateRandomMenu" :loading="randomLoading">生成菜单</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 展示结果 -->
+      <div v-if="randomResult.length > 0">
+        <el-divider>今日推荐</el-divider>
+        <el-row :gutter="16">
+          <!-- 荤菜 -->
+          <el-col :span="8" v-if="randomResult.filter((item) => item.cuisineType === 0).length > 0">
+            <h4 style="color: #f56c6c">荤菜</h4>
+            <ul style="padding-left: 20px">
+              <li v-for="item in randomResult.filter((item) => item.cuisineType === 0)" :key="item.id">
+                {{ item.cuisineName }}
+              </li>
+            </ul>
+          </el-col>
+          <!-- 素菜 -->
+          <el-col :span="8" v-if="randomResult.filter((item) => item.cuisineType === 1).length > 0">
+            <h4 style="color: #67c23a">素菜</h4>
+            <ul style="padding-left: 20px">
+              <li v-for="item in randomResult.filter((item) => item.cuisineType === 1)" :key="item.id">
+                {{ item.cuisineName }}
+              </li>
+            </ul>
+          </el-col>
+          <!-- 汤粥 -->
+          <el-col :span="8" v-if="randomResult.filter((item) => item.cuisineType === 2).length > 0">
+            <h4 style="color: #409eff">汤粥</h4>
+            <ul style="padding-left: 20px">
+              <li v-for="item in randomResult.filter((item) => item.cuisineType === 2)" :key="item.id">
+                {{ item.cuisineName }}
+              </li>
+            </ul>
+          </el-col>
+        </el-row>
+      </div>
+      <div v-else style="text-align: center; color: #999; padding: 20px">点击「生成菜单」查看今日随机菜品</div>
+
+      <template #footer>
+        <el-button @click="randomDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 分页 -->
     <el-pagination
@@ -69,7 +128,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
-import { getCuisineList, addCuisine } from "../api/dish";
+import { getCuisineList, addCuisine, getRandomCuisine } from "../api/dish";
 
 // 当前激活的 tab（对应 cuisineType）
 const activeTab = ref("0");
@@ -101,6 +160,25 @@ const addFormRules = {
   ]
 };
 
+// 随机菜单弹窗
+const randomDialogVisible = ref(false);
+const randomLoading = ref(false);
+const randomParams = reactive({
+  meatCount: 0,
+  vegetableCount: 0,
+  soupCount: 0
+});
+const randomResult = ref([]); // 存储返回的菜品列表
+
+const openRandomDialog = () => {
+  // 重置数量和结果
+  randomParams.meatCount = 0;
+  randomParams.vegetableCount = 0;
+  randomParams.soupCount = 0;
+  randomResult.value = [];
+  randomDialogVisible.value = true;
+};
+
 // 根据当前 tab 获取分类名称（用于按钮文字）
 const currentTabName = computed(() => {
   const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
@@ -123,6 +201,58 @@ const fetchDishList = async () => {
     ElMessage.error("获取菜品列表失败");
   } finally {
     loading.value = false;
+  }
+};
+
+const generateRandomMenu = async () => {
+  // 数据验证
+  if (randomParams.meatCount < 0 || randomParams.vegetableCount < 0 || randomParams.soupCount < 0) {
+    ElMessage.warning("数量不能为负数");
+    return;
+  }
+  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount === 0) {
+    ElMessage.warning("请至少选择一道菜");
+    return;
+  }
+
+  if (randomParams.meatCount > 5 || randomParams.vegetableCount > 5 || randomParams.soupCount > 5) {
+    ElMessage.warning("每类菜品最多选择5个");
+    return;
+  }
+
+  if (randomParams.meatCount + randomParams.vegetableCount + randomParams.soupCount > 10) {
+    ElMessage.warning("菜品总数不能超过10");
+    return;
+  }
+
+  randomLoading.value = true;
+  try {
+    const res = await getRandomCuisine({
+      meatCount: randomParams.meatCount,
+      vegetableCount: randomParams.vegetableCount,
+      soupCount: randomParams.soupCount
+    });
+    if (res.code === 200) {
+      randomResult.value = res.data || [];
+      if (randomResult.value.length === 0) {
+        ElMessage.info("暂无符合条件的菜品");
+      } else {
+        // 可选：提示实际返回的数量（如果少于请求数量）
+        const meatActual = randomResult.value.filter((item) => item.cuisineType === 0).length;
+        const vegActual = randomResult.value.filter((item) => item.cuisineType === 1).length;
+        const soupActual = randomResult.value.filter((item) => item.cuisineType === 2).length;
+        if (meatActual < randomParams.meatCount || vegActual < randomParams.vegetableCount || soupActual < randomParams.soupCount) {
+          ElMessage.warning("部分菜品数量不足，已返回全部可用菜品");
+        }
+      }
+    } else {
+      ElMessage.error(res.message || "获取失败");
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("随机菜单生成失败");
+  } finally {
+    randomLoading.value = false;
   }
 };
 
@@ -225,5 +355,9 @@ const handleDelete = (row) => {
 .el-pagination {
   margin-top: 20px;
   justify-content: flex-end;
+}
+xz .el-dialog__body {
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style>

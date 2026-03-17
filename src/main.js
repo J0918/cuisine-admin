@@ -5,6 +5,7 @@ import "element-plus/dist/index.css";
 import zhCn from "element-plus/dist/locale/zh-cn.mjs"; // 引入中文语言包
 import App from "./App.vue";
 import router from "./router";
+// import "amfe-flexible";
 
 const app = createApp(App);
 

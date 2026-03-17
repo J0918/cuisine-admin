@@ -17,3 +17,12 @@ export function addCuisine(params) {
     data: params
   });
 }
+
+// 获取随机菜品
+export function getRandomCuisine(params) {
+  return request({
+    url: "/Cuisine/GetRandomCuisine",
+    method: "get",
+    params
+  });
+}
