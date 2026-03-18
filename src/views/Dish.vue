@@ -7,6 +7,7 @@
       <el-tab-pane label="荤菜" name="0"></el-tab-pane>
       <el-tab-pane label="素菜" name="1"></el-tab-pane>
       <el-tab-pane label="汤粥" name="2"></el-tab-pane>
+      <el-tab-pane label="其他菜系" name="3"></el-tab-pane>
     </el-tabs>
 
     <!-- 筛选区域 + 新增按钮 -->
@@ -17,7 +18,6 @@
       <el-form-item>
         <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="resetSearch">重置</el-button>
-        <!-- 新增按钮，根据当前 tab 显示对应分类名称 -->
         <el-button type="success" @click="handleAdd" style="margin-left: 12px"> 新增{{ currentTabName }} </el-button>
         <el-button type="warning" @click="openRandomDialog" style="margin-left: 12px"> 今天吃什么 </el-button>
       </el-form-item>
@@ -27,6 +27,13 @@
     <el-table v-loading="loading" :data="dishList" border stripe style="margin-top: 16px">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="cuisineName" label="菜品名称" />
+      <el-table-column prop="description" label="菜品描述" />
+      <el-table-column label="菜品图片" width="100">
+        <template #default="{ row }">
+          <el-image v-if="row.imageUrl" :src="getImageUrl(row.imageUrl)" :preview-src-list="[getImageUrl(row.imageUrl)]" fit="cover" style="width: 50px; height: 50px; border-radius: 4px" />
+          <span v-else style="color: #999">无图</span>
+        </template>
+      </el-table-column>
       <el-table-column label="分类" width="120">
         <template #default="{ row }">
           {{ getCuisineTypeText(row.cuisineType) }}
@@ -69,6 +76,7 @@
             <ul style="padding-left: 20px">
               <li v-for="item in randomResult.filter((item) => item.cuisineType === 0)" :key="item.id">
                 {{ item.cuisineName }}
+                {{ item.description }}
               </li>
             </ul>
           </el-col>
@@ -78,6 +86,7 @@
             <ul style="padding-left: 20px">
               <li v-for="item in randomResult.filter((item) => item.cuisineType === 1)" :key="item.id">
                 {{ item.cuisineName }}
+                {{ item.description }}
               </li>
             </ul>
           </el-col>
@@ -87,6 +96,17 @@
             <ul style="padding-left: 20px">
               <li v-for="item in randomResult.filter((item) => item.cuisineType === 2)" :key="item.id">
                 {{ item.cuisineName }}
+                {{ item.description }}
+              </li>
+            </ul>
+          </el-col>
+          <!-- 其他菜系 -->
+          <el-col :span="8" v-if="randomResult.filter((item) => item.cuisineType === 3).length > 0">
+            <h4 style="color: #909399">其他菜系</h4>
+            <ul style="padding-left: 20px">
+              <li v-for="item in randomResult.filter((item) => item.cuisineType === 3)" :key="item.id">
+                {{ item.cuisineName }}
+                {{ item.description }}
               </li>
             </ul>
           </el-col>
@@ -116,6 +136,16 @@
         <el-form-item label="菜品名称" prop="cuisineName">
           <el-input v-model="addForm.cuisineName" placeholder="请输入菜品名称" />
         </el-form-item>
+        <el-form-item label="菜品说明" prop="description">
+          <el-input v-model="addForm.description" type="textarea" :rows="3" placeholder="请输入菜品说明" maxlength="500" show-word-limit />
+        </el-form-item>
+        <el-form-item label="菜品图片">
+          <el-upload class="avatar-uploader" action="#" :before-upload="(file) => handleBeforeUpload(file, 'add')" :http-request="() => {}" :show-file-list="false">
+            <img v-if="addForm.imageUrl" :src="getImageUrl(addForm.imageUrl)" class="avatar" />
+            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+          </el-upload>
+          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 5MB</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="addDialogVisible = false">取消</el-button>
@@ -129,6 +159,16 @@
         <el-form-item label="菜品名称" prop="cuisineName">
           <el-input v-model="editForm.cuisineName" placeholder="请输入菜品名称" />
         </el-form-item>
+        <el-form-item label="菜品说明" prop="description">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="请输入菜品说明" maxlength="500" show-word-limit />
+        </el-form-item>
+        <el-form-item label="菜品图片">
+          <el-upload class="avatar-uploader" action="#" :before-upload="(file) => handleBeforeUpload(file, 'edit')" :http-request="() => {}" :show-file-list="false">
+            <img v-if="editForm.imageUrl" :src="getImageUrl(editForm.imageUrl)" class="avatar" />
+            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+          </el-upload>
+          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 5MB</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -141,7 +181,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { getCuisineList, addCuisine, updateCuisine, deleteCuisine, getRandomCuisine } from "../api/dish";
+import { getCuisineList, addCuisine, updateCuisine, deleteCuisine, getRandomCuisine, uploadImage } from "../api/dish";
+import { Plus } from "@element-plus/icons-vue";
 
 // 当前激活的 tab（对应 cuisineType）
 const activeTab = ref("0");
@@ -170,7 +211,7 @@ const fetchDishList = async () => {
     dishList.value = res.data || [];
     total.value = res.totalCount || 0;
   } catch (error) {
-    console.error(error);
+    console.error("获取菜品列表失败：", error);
     ElMessage.error("获取菜品列表失败");
   } finally {
     loading.value = false;
@@ -206,7 +247,7 @@ const handleCurrentChange = (page) => {
 };
 
 const getCuisineTypeText = (type) => {
-  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
+  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥", 3: "其他菜系" };
   return map[type] || "未知";
 };
 
@@ -214,9 +255,12 @@ const getCuisineTypeText = (type) => {
 const addDialogVisible = ref(false);
 const addLoading = ref(false);
 const addFormRef = ref(null);
+// 新增表单
 const addForm = reactive({
   cuisineName: "",
-  cuisineType: 0
+  cuisineType: 0,
+  description: "",
+  imageUrl: ""
 });
 
 const addFormRules = {
@@ -228,7 +272,7 @@ const addFormRules = {
 
 // 根据当前 tab 获取分类名称（用于按钮文字）
 const currentTabName = computed(() => {
-  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥" };
+  const map = { 0: "荤菜", 1: "素菜", 2: "汤粥", 3: "其他菜系" };
   return map[activeTab.value] || "菜品";
 });
 
@@ -242,23 +286,34 @@ const resetAddForm = () => {
     addFormRef.value.resetFields();
   }
   addForm.cuisineName = "";
+  addForm.description = "";
+  addForm.imageUrl = "";
 };
 
+//新增提交
 const submitAdd = async () => {
   if (!addFormRef.value) return;
   await addFormRef.value.validate(async (valid) => {
     if (valid) {
       addLoading.value = true;
       try {
+        console.log("新增提交参数：", {
+          cuisineName: addForm.cuisineName,
+          cuisineType: addForm.cuisineType,
+          description: addForm.description || null,
+          imageUrl: addForm.imageUrl || null
+        });
         await addCuisine({
           cuisineName: addForm.cuisineName,
-          cuisineType: addForm.cuisineType
+          cuisineType: addForm.cuisineType,
+          description: addForm.description || null,
+          imageUrl: addForm.imageUrl || null
         });
         ElMessage.success("新增成功");
         addDialogVisible.value = false;
         fetchDishList();
       } catch (error) {
-        console.error(error);
+        console.error("新增菜品失败：", error);
         ElMessage.error("新增失败");
       } finally {
         addLoading.value = false;
@@ -271,9 +326,12 @@ const submitAdd = async () => {
 const editDialogVisible = ref(false);
 const editLoading = ref(false);
 const editFormRef = ref(null);
+// 编辑表单
 const editForm = reactive({
   id: null,
-  cuisineName: ""
+  cuisineName: "",
+  description: "",
+  imageUrl: ""
 });
 
 const editFormRules = {
@@ -286,7 +344,10 @@ const editFormRules = {
 const handleEdit = (row) => {
   editForm.id = row.id;
   editForm.cuisineName = row.cuisineName;
+  editForm.description = row.description || "";
+  editForm.imageUrl = row.imageUrl || "";
   editDialogVisible.value = true;
+  console.log("编辑弹窗打开时 imageUrl：", editForm.imageUrl);
 };
 
 const resetEditForm = () => {
@@ -295,24 +356,34 @@ const resetEditForm = () => {
   }
   editForm.id = null;
   editForm.cuisineName = "";
+  editForm.description = "";
+  editForm.imageUrl = "";
 };
 
+//编辑提交
 const submitEdit = async () => {
   if (!editFormRef.value) return;
   await editFormRef.value.validate(async (valid) => {
     if (valid) {
       editLoading.value = true;
       try {
-        // 调用修改接口（GET 方式，传入 id 和 cuisineName）
+        console.log("编辑提交参数：", {
+          id: editForm.id,
+          cuisineName: editForm.cuisineName,
+          description: editForm.description || null,
+          imageUrl: editForm.imageUrl || null
+        });
         await updateCuisine({
           id: editForm.id,
-          cuisineName: editForm.cuisineName
+          cuisineName: editForm.cuisineName,
+          description: editForm.description || null,
+          imageUrl: editForm.imageUrl || null
         });
         ElMessage.success("修改成功");
         editDialogVisible.value = false;
         fetchDishList();
       } catch (error) {
-        console.error(error);
+        console.error("修改菜品失败：", error);
         ElMessage.error("修改失败");
       } finally {
         editLoading.value = false;
@@ -334,7 +405,7 @@ const handleDelete = (row) => {
         ElMessage.success("删除成功");
         fetchDishList();
       } catch (error) {
-        console.error(error);
+        console.error("删除菜品失败：", error);
         ElMessage.error("删除失败");
       }
     })
@@ -402,7 +473,7 @@ const generateRandomMenu = async () => {
       ElMessage.error(res.message || "获取失败");
     }
   } catch (error) {
-    console.error(error);
+    console.error("生成随机菜单失败：", error);
     ElMessage.error("随机菜单生成失败");
   } finally {
     randomLoading.value = false;
@@ -413,6 +484,58 @@ const generateRandomMenu = async () => {
 onMounted(() => {
   fetchDishList();
 });
+
+// 图片上传核心逻辑（简化版）
+const handleBeforeUpload = async (file, type) => {
+  // 1. 校验文件格式和大小
+  const isImage = ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(file.type);
+  const isLt5M = file.size / 1024 / 1024 < 5;
+
+  if (!isImage) {
+    ElMessage.error("上传图片只能是 JPG/PNG/GIF 格式!");
+    return false;
+  }
+  if (!isLt5M) {
+    ElMessage.error("上传图片大小不能超过 5MB!");
+    return false;
+  }
+
+  // 2. 直接调用上传接口
+  try {
+    const res = await uploadImage(file);
+    if (res.code === 200) {
+      const imageUrl = res.data;
+      // 3. 根据类型赋值到对应表单
+      if (type === "add") {
+        addForm.imageUrl = imageUrl;
+        console.log("新增上传后 imageUrl：", addForm.imageUrl);
+      } else if (type === "edit") {
+        editForm.imageUrl = imageUrl;
+        console.log("编辑上传后 imageUrl：", editForm.imageUrl);
+      }
+      ElMessage.success("图片上传成功");
+    } else {
+      ElMessage.error(res.message || "图片上传失败");
+    }
+  } catch (err) {
+    console.error("图片上传异常：", err);
+    ElMessage.error("图片上传请求异常，请重试");
+  }
+
+  // 阻止组件默认上传行为
+  return false;
+};
+
+// 从环境变量获取图片基础路径（注意不要尾部斜杠）
+const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL || "";
+
+// 处理图片 URL
+const getImageUrl = (relativePath) => {
+  if (!relativePath) return "";
+  // 如果已经是完整 URL 则直接返回
+  if (relativePath.startsWith("http")) return relativePath;
+  return `${imageBaseUrl}${relativePath}`;
+};
 </script>
 
 <style scoped>
@@ -422,5 +545,42 @@ onMounted(() => {
 .el-pagination {
   margin-top: 20px;
   justify-content: flex-end;
+}
+
+.avatar-uploader .avatar {
+  width: 100px;
+  height: 100px;
+  display: block;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #dcdfe6;
+}
+.avatar-uploader .el-upload {
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--el-transition-duration-fast);
+}
+.avatar-uploader .el-upload:hover {
+  border-color: var(--el-color-primary);
+}
+.avatar-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+  width: 100px;
+  height: 100px;
+  text-align: center;
+  line-height: 100px;
+}
+.el-upload__tip {
+  margin-top: 0; /* 清除提示文字的上边距，由 avatar-uploader 控制间距 */
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.5; /* 增加行高，避免文字拥挤 */
+}
+.avatar-uploader {
+  margin-bottom: 16px; /* 给上传组件底部增加一点间距 */
 }
 </style>
