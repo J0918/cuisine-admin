@@ -489,14 +489,14 @@ onMounted(() => {
 const handleBeforeUpload = async (file, type) => {
   // 1. 校验文件格式和大小
   const isImage = ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(file.type);
-  const isLt5M = file.size / 1024 / 1024 < 5;
+  const isLt5M = file.size / 1024 / 1024 < 10;
 
   if (!isImage) {
     ElMessage.error("上传图片只能是 JPG/PNG/GIF 格式!");
     return false;
   }
   if (!isLt5M) {
-    ElMessage.error("上传图片大小不能超过 5MB!");
+    ElMessage.error("上传图片大小不能超过 10MB!");
     return false;
   }
 
