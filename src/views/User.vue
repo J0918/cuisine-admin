@@ -135,8 +135,14 @@ const fetchUserList = async () => {
   loading.value = true;
   try {
     const res = await getUserList(queryParams);
-    userList.value = res.data || []; // 数据数组
-    total.value = res.totalCount || 0; // 总条数
+    if (res.code === 200 && res.data) {
+      userList.value = res.data.data || [];
+      total.value = res.data.totalCount || 0;
+    } else {
+      ElMessage.error(res.message || "获取用户列表失败");
+      userList.value = [];
+      total.value = 0;
+    }
   } catch (error) {
     console.error(error);
     ElMessage.error("获取用户列表失败");

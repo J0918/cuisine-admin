@@ -144,7 +144,7 @@
             <img v-if="addForm.imageUrl" :src="getImageUrl(addForm.imageUrl)" class="avatar" />
             <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
           </el-upload>
-          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 5MB</div>
+          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 10MB</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -167,7 +167,7 @@
             <img v-if="editForm.imageUrl" :src="getImageUrl(editForm.imageUrl)" class="avatar" />
             <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
           </el-upload>
-          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 5MB</div>
+          <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 10MB</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -199,7 +199,7 @@ const dishList = ref([]);
 const total = ref(0);
 const loading = ref(false);
 
-// ---------- 列表相关方法 ----------
+// 获取菜品列表
 const fetchDishList = async () => {
   loading.value = true;
   try {
@@ -208,8 +208,14 @@ const fetchDishList = async () => {
       params.cuisineName = null;
     }
     const res = await getCuisineList(params);
-    dishList.value = res.data || [];
-    total.value = res.totalCount || 0;
+    if (res.code === 200 && res.data) {
+      dishList.value = res.data.data || [];
+      total.value = res.data.totalCount || 0;
+    } else {
+      ElMessage.error(res.message || "获取菜品列表失败");
+      dishList.value = [];
+      total.value = 0;
+    }
   } catch (error) {
     console.error("获取菜品列表失败：", error);
     ElMessage.error("获取菜品列表失败");
@@ -489,14 +495,14 @@ onMounted(() => {
 const handleBeforeUpload = async (file, type) => {
   // 1. 校验文件格式和大小
   const isImage = ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(file.type);
-  const isLt5M = file.size / 1024 / 1024 < 5;
+  const isLt5M = file.size / 1024 / 1024 < 10;
 
   if (!isImage) {
     ElMessage.error("上传图片只能是 JPG/PNG/GIF 格式!");
     return false;
   }
   if (!isLt5M) {
-    ElMessage.error("上传图片大小不能超过 5MB!");
+    ElMessage.error("上传图片大小不能超过 10MB!");
     return false;
   }
 

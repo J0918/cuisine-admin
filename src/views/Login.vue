@@ -135,7 +135,12 @@ const handleLogin = async () => {
         router.push("/dish");
       } catch (error) {
         console.error(error);
-        ElMessage.error("登录失败，请重试");
+        // ========== 核心修改：用户名/密码错误时，刷新验证码+清空输入 ==========
+        refreshCaptcha();
+        form.captcha = "";
+        // 优化错误提示：优先展示接口返回的错误信息（如用户名或密码错误），兜底通用提示
+        const errMsg = error.response?.data?.message || "登录失败，请重试";
+        ElMessage.error(errMsg);
       } finally {
         loading.value = false;
       }
