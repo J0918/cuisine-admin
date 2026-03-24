@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Login from "../views/Login.vue";
 import User from "../views/User.vue";
-import Dish from "../views/Dish.vue";
+import DishManagement from "../views/DishManagement.vue";
 
 const routes = [
   {
@@ -26,7 +26,7 @@ const routes = [
   {
     path: "/dish",
     name: "Dish",
-    component: Dish,
+    component: DishManagement,
     meta: {
       requiresAuth: true,
       title: "菜品管理"
