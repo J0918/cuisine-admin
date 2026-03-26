@@ -31,8 +31,8 @@ export function getRandomCuisine(params) {
 export function updateCuisine(params) {
   return request({
     url: "/Cuisine/UpdateCuisine",
-    method: "get",
-    params
+    method: "post",
+    data: params
   });
 }
 

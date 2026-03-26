@@ -4,6 +4,12 @@
       <el-form-item label="菜品名称" prop="cuisineName">
         <el-input v-model="formData.cuisineName" placeholder="请输入菜品名称" />
       </el-form-item>
+      <el-form-item label="食材">
+        <el-input v-model="formData.ingredients" type="textarea" :rows="2" placeholder="例如：猪肉、白菜、豆腐" maxlength="500" show-word-limit />
+      </el-form-item>
+      <el-form-item label="调料">
+        <el-input v-model="formData.seasonings" type="textarea" :rows="2" placeholder="例如：盐、生抽、料酒" maxlength="500" show-word-limit />
+      </el-form-item>
       <el-form-item label="菜品说明" prop="description">
         <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入菜品说明" maxlength="500" show-word-limit />
       </el-form-item>
@@ -59,6 +65,8 @@ const submitLoading = ref(false);
 const formData = reactive({
   id: null,
   cuisineName: "",
+  ingredients: "",
+  seasonings: "",
   description: "",
   imageUrl: "",
   cuisineType: 0
@@ -81,11 +89,11 @@ watch(
         formData.id = props.initialData.id;
         formData.cuisineName = props.initialData.cuisineName;
         formData.description = props.initialData.description || "";
+        formData.ingredients = props.initialData.ingredients || "";
+        formData.seasonings = props.initialData.seasonings || "";
         formData.imageUrl = props.initialData.imageUrl || "";
-        // 编辑时不需要修改分类，分类不可变（可根据需求决定）
         formData.cuisineType = props.initialData.cuisineType;
       } else {
-        // 新增模式
         resetForm();
         formData.cuisineType = props.categoryType;
       }
@@ -98,9 +106,10 @@ const resetForm = () => {
   if (formRef.value) formRef.value.resetFields();
   formData.id = null;
   formData.cuisineName = "";
+  formData.ingredients = "";
+  formData.seasonings = "";
   formData.description = "";
   formData.imageUrl = "";
-  // cuisineType 在新增时会由 props.categoryType 重新赋值
 };
 
 const { uploadImage, uploading } = useImageUpload();
@@ -123,6 +132,8 @@ const submitForm = async () => {
     try {
       const submitData = {
         cuisineName: formData.cuisineName,
+        ingredients: formData.ingredients || null,
+        seasonings: formData.seasonings || null,
         description: formData.description || null,
         imageUrl: formData.imageUrl || null
       };

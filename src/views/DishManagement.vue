@@ -27,6 +27,16 @@
     <el-table v-loading="loading" :data="dishList" border stripe style="margin-top: 16px">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="cuisineName" label="菜品名称" />
+      <el-table-column prop="ingredients" label="食材" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.ingredients }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="seasonings" label="调料" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.seasonings }}
+        </template>
+      </el-table-column>
       <el-table-column prop="description" label="菜品描述" />
       <el-table-column label="菜品图片" width="100">
         <template #default="{ row }">
