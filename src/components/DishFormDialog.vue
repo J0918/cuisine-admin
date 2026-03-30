@@ -15,7 +15,14 @@
       </el-form-item>
       <el-form-item label="菜品图片">
         <el-upload class="avatar-uploader" action="#" :before-upload="handleBeforeUpload" :http-request="() => {}" :show-file-list="false">
-          <img v-if="formData.imageUrl" :src="getImageUrl(formData.imageUrl)" class="avatar" />
+          <!-- 有图片时显示图片 + 删除按钮 -->
+          <div v-if="formData.imageUrl" class="image-wrapper">
+            <img :src="getImageUrl(formData.imageUrl)" class="avatar" />
+            <el-icon class="delete-icon" @click.stop="clearImage">
+              <CircleCloseFilled />
+            </el-icon>
+          </div>
+          <!-- 无图片时显示加号 -->
           <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
         </el-upload>
         <div class="el-upload__tip">只能上传 jpg/png/gif 文件，且不超过 10MB</div>
@@ -33,13 +40,13 @@ import { ref, watch, reactive, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { addCuisine, updateCuisine } from "../api/dish";
 import { useImageUpload } from "../composables/useImageUpload";
-import { Plus } from "@element-plus/icons-vue";
+import { Plus, CircleCloseFilled } from "@element-plus/icons-vue";
 
 const props = defineProps({
   visible: Boolean,
   mode: {
     type: String,
-    default: "add" // 'add' 或 'edit'
+    default: "add"
   },
   initialData: {
     type: Object,
@@ -47,7 +54,7 @@ const props = defineProps({
   },
   categoryType: {
     type: Number,
-    default: 0 // 新增时使用的分类类型
+    default: 0
   }
 });
 
@@ -68,7 +75,7 @@ const formData = reactive({
   ingredients: "",
   seasonings: "",
   description: "",
-  imageUrl: "",
+  imageUrl: null,
   cuisineType: 0
 });
 
@@ -91,7 +98,7 @@ watch(
         formData.description = props.initialData.description || "";
         formData.ingredients = props.initialData.ingredients || "";
         formData.seasonings = props.initialData.seasonings || "";
-        formData.imageUrl = props.initialData.imageUrl || "";
+        formData.imageUrl = props.initialData.imageUrl || null;
         formData.cuisineType = props.initialData.cuisineType;
       } else {
         resetForm();
@@ -109,7 +116,7 @@ const resetForm = () => {
   formData.ingredients = "";
   formData.seasonings = "";
   formData.description = "";
-  formData.imageUrl = "";
+  formData.imageUrl = null; // 重置图片
 };
 
 const { uploadImage, uploading } = useImageUpload();
@@ -122,6 +129,11 @@ const handleBeforeUpload = async (file) => {
     return false; // 阻止默认上传
   }
   return false;
+};
+
+// 清空图片
+const clearImage = () => {
+  formData.imageUrl = null;
 };
 
 const submitForm = async () => {
@@ -202,5 +214,31 @@ const getImageUrl = (relativePath) => {
 }
 .avatar-uploader {
   margin-bottom: 16px;
+}
+
+/* 图片容器（相对定位，用于放置删除按钮） */
+.image-wrapper {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+/* 删除按钮样式（图片右上角） */
+.delete-icon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(30%, -30%);
+  font-size: 20px;
+  background-color: #fff;
+  border-radius: 50%;
+  color: #f56c6c;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+.delete-icon:hover {
+  color: #ff0000;
+  transform: translate(30%, -30%) scale(1.1);
 }
 </style>
