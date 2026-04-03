@@ -34,7 +34,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- 底部提示（可选） -->
+      <!-- 底部提示 -->
       <div class="login-footer">
         <span>© 2026 后台管理系统</span>
       </div>
@@ -60,7 +60,7 @@ const form = reactive({
   captcha: ""
 });
 
-// 验证码正确值（模拟）
+// 验证码正确值
 const correctCaptcha = ref("");
 
 // 生成随机验证码（4位数字）
@@ -70,10 +70,9 @@ const generateCaptcha = () => {
   return num.toString();
 };
 
-// 生成简单的 SVG 验证码（实际可用 canvas 绘制更复杂的样式）
+// 生成简单的 SVG 验证码
 const captchaSvg = ref("");
 const renderCaptchaSvg = (code) => {
-  // 简单样式：不同颜色、倾斜、干扰线
   const chars = code.split("");
   const svg = `
     <svg width="100" height="40" xmlns="http://www.w3.org/2000/svg">
@@ -87,7 +86,6 @@ const renderCaptchaSvg = (code) => {
           return `<text x="${x}" y="${y}" font-size="24" font-weight="bold" fill="${color}" transform="rotate(${rotate} ${x} ${y})">${char}</text>`;
         })
         .join("")}
-      <!-- 干扰线 -->
       <line x1="5" y1="20" x2="95" y2="30" stroke="#ccc" stroke-width="1" />
       <line x1="10" y1="35" x2="90" y2="10" stroke="#ccc" stroke-width="1" />
     </svg>
@@ -123,22 +121,34 @@ const handleLogin = async () => {
 
       loading.value = true;
       try {
-        const res = await login({
-          username: form.username,
-          password: form.password
-        });
-        const token = res.data; // token 字符串
-        authStore.setToken(token);
-        localStorage.setItem("token", token);
-        localStorage.setItem("username", form.username); // 保存用户名
-        ElMessage.success("登录成功");
-        router.push("/dish");
+        const res = await login({ username: form.username, password: form.password });
+
+        if (res.code === 200) {
+          const { token, userName, nickName, id } = res.data;
+
+          // 存储 token
+          authStore.setToken(token);
+          localStorage.setItem("token", token);
+
+          // 存储用户信息
+          localStorage.setItem("userName", userName); // 登录账号
+          localStorage.setItem("nickName", nickName); // 昵称（用于界面展示）
+          localStorage.setItem("username", userName);
+          localStorage.setItem("userId", id);
+
+          ElMessage.success("登录成功");
+          router.push("/dish");
+        } else {
+          // 接口返回非 200 状态码（如账号密码错误）
+          refreshCaptcha();
+          form.captcha = "";
+          ElMessage.error(res.data.message || "登录失败，请重试");
+        }
       } catch (error) {
         console.error(error);
-        // ========== 核心修改：用户名/密码错误时，刷新验证码+清空输入 ==========
+        // 网络错误或服务端异常时，刷新验证码+清空输入
         refreshCaptcha();
         form.captcha = "";
-        // 优化错误提示：优先展示接口返回的错误信息（如用户名或密码错误），兜底通用提示
         const errMsg = error.response?.data?.message || "登录失败，请重试";
         ElMessage.error(errMsg);
       } finally {

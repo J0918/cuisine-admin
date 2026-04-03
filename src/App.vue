@@ -40,10 +40,10 @@
           <span class="page-title">{{ currentRouteName }}</span>
         </div>
         <div class="header-right">
-          <!-- 显示当前登录用户名，下拉菜单包含退出选项 -->
+          <!-- 显示当前登录用户（优先昵称，其次账号） -->
           <el-dropdown @command="handleCommand">
             <span class="user-dropdown">
-              {{ username }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              {{ displayName }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
@@ -86,19 +86,19 @@ const toggleCollapse = () => {
 // 当前激活的菜单项（根据路由路径高亮）
 const activeMenu = computed(() => route.path);
 
-// 当前路由名称（用于顶栏显示），优先使用 meta.title，否则回退到 route.name
+// 当前路由名称（用于顶栏显示）
 const currentRouteName = computed(() => {
   return route.meta?.title || route.name || "首页";
 });
 
-// 当前登录用户名（从 localStorage 获取，默认空字符串）
-const username = ref(localStorage.getItem("username") || "");
+// 显示的用户名：优先使用昵称(nickName)，其次使用账号(userName)，最后兼容旧字段(username)
+const displayName = ref(localStorage.getItem("nickName") || localStorage.getItem("userName") || localStorage.getItem("username") || "");
 
-// 监听路由变化，确保用户名及时更新（例如登录后跳转过来时）
+// 监听路由变化，确保用户信息及时更新
 watch(
   () => route.path,
   () => {
-    username.value = localStorage.getItem("username") || "";
+    displayName.value = localStorage.getItem("nickName") || localStorage.getItem("userName") || localStorage.getItem("username") || "";
   }
 );
 
@@ -111,9 +111,12 @@ const handleCommand = (command) => {
       type: "info"
     })
       .then(() => {
-        // 清除登录信息
+        // 清除所有登录相关存储
         localStorage.removeItem("token");
         localStorage.removeItem("username");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("nickName");
+        localStorage.removeItem("userId");
         router.push("/login");
       })
       .catch(() => {});

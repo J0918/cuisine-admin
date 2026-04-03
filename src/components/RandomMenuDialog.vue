@@ -106,8 +106,6 @@ const generateRandomMenu = async () => {
     });
     if (res.code === 200) {
       randomResult.value = res.data || [];
-      console.log("randomResult.value:", randomResult.value);
-      console.log("groupedResult.value:", groupedResult.value);
       if (randomResult.value.length === 0) {
         ElMessage.info("暂无符合条件的菜品");
       } else {

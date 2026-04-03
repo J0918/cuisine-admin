@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h2>用户管理</h2>
+    <h2 style="margin: 0 0 16px 0">用户管理</h2>
 
     <!-- 筛选表单 -->
     <el-form :inline="true" :model="queryParams" class="demo-form-inline" @submit.prevent>
@@ -42,53 +42,8 @@
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange" />
 
-    <!-- 新增用户对话框 -->
-    <el-dialog v-model="addDialogVisible" title="新增用户" width="500px" @close="resetAddForm">
-      <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="80px">
-        <el-form-item label="用户名" prop="userName">
-          <el-input v-model="addForm.userName" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="昵称" prop="nickName">
-          <el-input v-model="addForm.nickName" placeholder="请输入昵称" />
-        </el-form-item>
-        <el-form-item label="手机号" prop="phoneNumber">
-          <el-input v-model="addForm.phoneNumber" placeholder="请输入手机号" />
-        </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="addForm.password" type="password" show-password placeholder="请输入密码" />
-        </el-form-item>
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input v-model="addForm.confirmPassword" type="password" show-password placeholder="请再次输入密码" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="addDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitAdd" :loading="addLoading">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑用户对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑用户" width="500px" @close="resetEditForm">
-      <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="80px">
-        <el-form-item label="用户名" prop="userName">
-          <el-input v-model="editForm.userName" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="昵称" prop="nickName">
-          <el-input v-model="editForm.nickName" placeholder="请输入昵称" />
-        </el-form-item>
-        <el-form-item label="手机号" prop="phoneNumber">
-          <el-input v-model="editForm.phoneNumber" placeholder="请输入手机号" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="editDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitEdit" :loading="editLoading">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <!-- 新增/编辑用户弹窗 -->
+    <UserFormDialog v-model:visible="userFormVisible" :mode="userFormMode" :initial-data="editData" @success="onUserFormSuccess" />
 
     <!-- 修改密码对话框 -->
     <el-dialog v-model="passwordDialogVisible" title="修改密码" width="500px" @close="resetPasswordForm">
@@ -114,11 +69,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from "vue";
-import { ElMessage } from "element-plus";
-import { getUserList, addUser, updateUser, changePassword } from "../api/user";
+import { ref, reactive, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { getUserList, changePassword } from "../api/user";
+import UserFormDialog from "../components/UserFormDialog.vue";
+import { useRouter } from "vue-router";
+const router = useRouter();
+const currentUserId = localStorage.getItem("userId");
 
-// 查询参数（包含分页）
+// ---------- 查询参数 ----------
 const queryParams = reactive({
   userName: "",
   nickName: "",
@@ -126,11 +85,10 @@ const queryParams = reactive({
   pageSize: 10
 });
 
-const userList = ref([]); // 表格数据
-const total = ref(0); // 总记录数
-const loading = ref(false); // 加载状态
+const userList = ref([]);
+const total = ref(0);
+const loading = ref(false);
 
-// 获取用户列表
 const fetchUserList = async () => {
   loading.value = true;
   try {
@@ -140,8 +98,6 @@ const fetchUserList = async () => {
       total.value = res.data.totalCount || 0;
     } else {
       ElMessage.error(res.message || "获取用户列表失败");
-      userList.value = [];
-      total.value = 0;
     }
   } catch (error) {
     console.error(error);
@@ -151,13 +107,11 @@ const fetchUserList = async () => {
   }
 };
 
-// 查询按钮
 const handleSearch = () => {
-  queryParams.pageIndex = 1; // 重置到第一页
+  queryParams.pageIndex = 1;
   fetchUserList();
 };
 
-// 重置筛选条件
 const resetSearch = () => {
   queryParams.userName = "";
   queryParams.nickName = "";
@@ -165,173 +119,50 @@ const resetSearch = () => {
   fetchUserList();
 };
 
-// 每页条数变化
 const handleSizeChange = (size) => {
   queryParams.pageSize = size;
-  queryParams.pageIndex = 1; // 通常改变每页条数后也回到第一页
+  queryParams.pageIndex = 1;
   fetchUserList();
 };
 
-// 当前页变化
 const handleCurrentChange = (page) => {
   queryParams.pageIndex = page;
   fetchUserList();
 };
 
-// 初始化加载
-onMounted(() => {
-  fetchUserList();
-});
+// ---------- 新增/编辑弹窗 ----------
+const userFormVisible = ref(false);
+const userFormMode = ref("add");
+const editData = ref(null);
 
-// ---------- 新增用户 ----------
-const addDialogVisible = ref(false);
-const addLoading = ref(false);
-const addFormRef = ref(null);
-const addForm = reactive({
-  userName: "",
-  nickName: "",
-  phoneNumber: "",
-  password: "",
-  confirmPassword: ""
-});
-
-// 新增表单校验规则
-const validateAddConfirm = (rule, value, callback) => {
-  if (value !== addForm.password) {
-    callback(new Error("两次输入密码不一致"));
-  } else {
-    callback();
-  }
-};
-
-const addRules = {
-  userName: [
-    { required: true, message: "请输入用户名", trigger: "blur" },
-    { min: 2, max: 20, message: "长度在 2 到 20 个字符", trigger: "blur" }
-  ],
-  nickName: [{ required: true, message: "请输入昵称", trigger: "blur" }],
-  phoneNumber: [
-    { required: true, message: "请输入手机号", trigger: "blur" },
-    { pattern: /^1[3-9]\d{9}$/, message: "请输入正确的手机号", trigger: "blur" }
-  ],
-  password: [
-    { required: true, message: "请输入密码", trigger: "blur" },
-    { min: 6, max: 20, message: "长度在 6 到 20 个字符", trigger: "blur" }
-  ],
-  confirmPassword: [
-    { required: true, message: "请再次输入密码", trigger: "blur" },
-    { validator: validateAddConfirm, trigger: "blur" }
-  ]
-};
-
-// 点击新增按钮
 const handleAdd = () => {
-  addDialogVisible.value = true;
+  userFormMode.value = "add";
+  editData.value = null;
+  userFormVisible.value = true;
 };
 
-// 重置新增表单
-const resetAddForm = () => {
-  addForm.userName = "";
-  addForm.nickName = "";
-  addForm.phoneNumber = "";
-  addForm.password = "";
-  addForm.confirmPassword = "";
-  addFormRef.value?.clearValidate();
-};
-
-// 提交新增
-const submitAdd = async () => {
-  if (!addFormRef.value) return;
-  await addFormRef.value.validate();
-  addLoading.value = true;
-  try {
-    const res = await addUser({
-      userName: addForm.userName,
-      nickName: addForm.nickName,
-      phoneNumber: addForm.phoneNumber,
-      password: addForm.password
-    });
-    if (res.code === 200) {
-      ElMessage.success(res.message || "新增成功");
-      addDialogVisible.value = false;
-      fetchUserList(); // 刷新列表
-    } else {
-      ElMessage.error(res.message || "新增失败");
-    }
-  } catch (error) {
-    console.error(error);
-    ElMessage.error("新增失败，请重试");
-  } finally {
-    addLoading.value = false;
-  }
-};
-
-// ---------- 编辑用户 ----------
-const editDialogVisible = ref(false);
-const editLoading = ref(false);
-const editFormRef = ref(null);
-const editForm = reactive({
-  id: null,
-  userName: "",
-  nickName: "",
-  phoneNumber: ""
-});
-
-// 编辑表单校验规则
-const editRules = {
-  userName: [
-    { required: true, message: "请输入用户名", trigger: "blur" },
-    { min: 2, max: 20, message: "长度在 2 到 20 个字符", trigger: "blur" }
-  ],
-  nickName: [{ required: true, message: "请输入昵称", trigger: "blur" }],
-  phoneNumber: [{ pattern: /^1[3-9]\d{9}$/, message: "请输入正确的手机号", trigger: "blur" }]
-};
-
-// 点击编辑按钮
 const handleEdit = (row) => {
-  // 将当前行数据填充到表单（注意不要直接赋值整个对象，避免影响原数据）
-  editForm.id = row.id;
-  editForm.userName = row.userName;
-  editForm.nickName = row.nickName;
-  editForm.phoneNumber = row.phoneNumber;
-  editDialogVisible.value = true;
+  userFormMode.value = "edit";
+  editData.value = { ...row };
+  userFormVisible.value = true;
 };
 
-// 重置编辑表单
-const resetEditForm = () => {
-  editForm.id = null;
-  editForm.userName = "";
-  editForm.nickName = "";
-  editForm.phoneNumber = "";
-  editFormRef.value?.clearValidate(); // 清除校验状态
-};
-
-// 提交编辑
-const submitEdit = async () => {
-  if (!editFormRef.value) return;
-  await editFormRef.value.validate(); // 校验表单
-  editLoading.value = true;
-  try {
-    const res = await updateUser({
-      id: editForm.id,
-      userName: editForm.userName,
-      nickName: editForm.nickName,
-      phoneNumber: editForm.phoneNumber
-    });
-    // 假设后端返回格式：{ code:200, message:'修改成功', data:false }
-    if (res.code === 200) {
-      ElMessage.success(res.message || "修改成功");
-      editDialogVisible.value = false;
-      fetchUserList(); // 刷新列表
-    } else {
-      ElMessage.error(res.message || "修改失败");
-    }
-  } catch (error) {
-    console.error(error);
-    ElMessage.error("修改失败，请重试");
-  } finally {
-    editLoading.value = false;
-  }
+// ---------- 删除用户 ----------
+const handleDelete = (row) => {
+  ElMessageBox.confirm(`确认删除用户“${row.userName}”吗？`, "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning"
+  })
+    .then(() => {
+      // 模拟删除，实际可替换为真实接口调用
+      ElMessage.info("删除功能暂未开放，敬请期待");
+      // 如果后端接口已准备好，可替换为以下代码：
+      // await deleteUser({ id: row.id });
+      // ElMessage.success('删除成功');
+      // fetchUserList();
+    })
+    .catch(() => {});
 };
 
 // ---------- 修改密码 ----------
@@ -345,7 +176,6 @@ const passwordForm = reactive({
   confirmPassword: ""
 });
 
-// 密码校验规则
 const validateConfirm = (rule, value, callback) => {
   if (value !== passwordForm.newPassword) {
     callback(new Error("两次输入密码不一致"));
@@ -366,13 +196,11 @@ const passwordRules = {
   ]
 };
 
-// 点击修改密码按钮
 const handleChangePassword = (row) => {
-  passwordForm.id = row.id; // 记录当前用户ID
+  passwordForm.id = row.id;
   passwordDialogVisible.value = true;
 };
 
-// 重置密码表单
 const resetPasswordForm = () => {
   passwordForm.oldPassword = "";
   passwordForm.newPassword = "";
@@ -380,13 +208,32 @@ const resetPasswordForm = () => {
   passwordFormRef.value?.clearValidate();
 };
 
-// 提交修改密码
+// 用户表单提交成功后的回调
+const onUserFormSuccess = () => {
+  fetchUserList();
+  if (userFormMode.value === "edit" && editData.value && Number(editData.value.id) === Number(currentUserId)) {
+    ElMessageBox.confirm("您修改了当前登录账号的信息，需要重新登录才能生效。是否立即退出？", "提示", {
+      confirmButtonText: "立即退出",
+      cancelButtonText: "稍后",
+      type: "warning"
+    })
+      .then(() => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("nickName");
+        localStorage.removeItem("userId");
+        router.push("/login");
+      })
+      .catch(() => {});
+  }
+};
+
 const submitChangePassword = async () => {
   if (!passwordFormRef.value) return;
   await passwordFormRef.value.validate();
   passwordLoading.value = true;
   try {
-    // 调用接口，使用 GET 传参
     const res = await changePassword({
       id: passwordForm.id,
       oldPassword: passwordForm.oldPassword,
@@ -395,7 +242,15 @@ const submitChangePassword = async () => {
     if (res.code === 200) {
       ElMessage.success(res.message || "密码修改成功");
       passwordDialogVisible.value = false;
-      // 修改密码后通常不需要刷新列表，但可以提示成功
+      if (Number(passwordForm.id) === Number(currentUserId)) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("nickName");
+        localStorage.removeItem("userId");
+        ElMessage.info("请使用新密码重新登录");
+        router.push("/login");
+      }
     } else {
       ElMessage.error(res.message || "密码修改失败");
     }
@@ -407,9 +262,9 @@ const submitChangePassword = async () => {
   }
 };
 
-const handleDelete = (row) => {
-  ElMessage.info("删除功能待实现");
-};
+onMounted(() => {
+  fetchUserList();
+});
 </script>
 
 <style scoped>
